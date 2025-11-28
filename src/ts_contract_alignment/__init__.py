@@ -20,6 +20,8 @@ from .models.enums import (
 )
 from .models.alignment import AlignmentMatch, AlignmentResult
 from .alignment import AlignmentEngine, RuleBasedMatcher, SemanticMatcher
+from .generators import ContractGenerator
+from .interfaces.generator import GeneratedContract, Modification
 
 __all__ = [
     "TSExtractor",
@@ -40,4 +42,7 @@ __all__ = [
     "AlignmentEngine",
     "RuleBasedMatcher",
     "SemanticMatcher",
+    "ContractGenerator",
+    "GeneratedContract",
+    "Modification",
 ]

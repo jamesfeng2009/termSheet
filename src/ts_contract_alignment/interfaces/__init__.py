@@ -6,6 +6,7 @@ from .analyzer import ITemplateAnalyzer
 from .alignment import IAlignmentEngine
 from .generator import IContractGenerator
 from .audit import IAuditLogger
+from .review import IReviewInterface
 
 __all__ = [
     "IDocumentParser",
@@ -14,4 +15,5 @@ __all__ = [
     "IAlignmentEngine",
     "IContractGenerator",
     "IAuditLogger",
+    "IReviewInterface",
 ]

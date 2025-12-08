@@ -74,13 +74,20 @@ class DatabaseManager:
     def engine(self) -> Engine:
         """Get or create the database engine."""
         if self._engine is None:
-            self._engine = create_engine(
-                self._database_url,
-                pool_size=self._pool_size,
-                max_overflow=self._max_overflow,
-                echo=self._echo,
-                pool_pre_ping=True,  # Enable connection health checks
-            )
+            # SQLite doesn't support pool_size and max_overflow parameters
+            if self._database_url.startswith("sqlite"):
+                self._engine = create_engine(
+                    self._database_url,
+                    echo=self._echo,
+                )
+            else:
+                self._engine = create_engine(
+                    self._database_url,
+                    pool_size=self._pool_size,
+                    max_overflow=self._max_overflow,
+                    echo=self._echo,
+                    pool_pre_ping=True,  # Enable connection health checks
+                )
         return self._engine
     
     @property

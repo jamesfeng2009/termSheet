@@ -369,11 +369,12 @@ class AuditLogger(IAuditLogger):
         self.save_version(entity_type, entity_id, snapshot)
         
         # Log the rollback event
+        # For contract rollbacks, use entity_id as document_id for easier querying
         self.log_event(AuditEvent(
             id=str(uuid.uuid4()),
             event_type=AuditEventType.MODIFICATION_APPLIED,
             timestamp=datetime.utcnow(),
-            document_id=entity_id if entity_type == "document" else None,
+            document_id=entity_id,  # Use entity_id for all entity types
             details={
                 "action": "rollback",
                 "entity_type": entity_type,

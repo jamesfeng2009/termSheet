@@ -13,9 +13,26 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     CheckConstraint,
+    JSON,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import DeclarativeBase, relationship
+from sqlalchemy.types import TypeDecorator
+
+
+class JSONType(TypeDecorator):
+    """Platform-independent JSON type.
+    
+    Uses JSONB for PostgreSQL and JSON for other databases (like SQLite).
+    """
+    impl = JSON
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect):
+        if dialect.name == 'postgresql':
+            return dialect.type_descriptor(JSONB())
+        else:
+            return dialect.type_descriptor(JSON())
 
 
 class Base(DeclarativeBase):
@@ -31,8 +48,8 @@ class DocumentModel(Base):
     filename = Column(String(255), nullable=False)
     doc_type = Column(String(10), nullable=False)
     upload_timestamp = Column(DateTime(timezone=True), default=datetime.utcnow)
-    parsed_content = Column(JSONB)
-    metadata_ = Column("metadata", JSONB)
+    parsed_content = Column(JSONType)
+    metadata_ = Column("metadata", JSONType)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -50,8 +67,8 @@ class TSExtractionModel(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
     extraction_timestamp = Column(DateTime(timezone=True), default=datetime.utcnow)
-    terms = Column(JSONB, nullable=False)
-    unrecognized_sections = Column(JSONB)
+    terms = Column(JSONType, nullable=False)
+    unrecognized_sections = Column(JSONType)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
     __table_args__ = (
@@ -66,8 +83,8 @@ class TemplateAnalysisModel(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
     analysis_timestamp = Column(DateTime(timezone=True), default=datetime.utcnow)
-    clauses = Column(JSONB, nullable=False)
-    structure_map = Column(JSONB)
+    clauses = Column(JSONType, nullable=False)
+    structure_map = Column(JSONType)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
     __table_args__ = (
@@ -83,9 +100,9 @@ class AlignmentModel(Base):
     ts_document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False)
     template_document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False)
     alignment_timestamp = Column(DateTime(timezone=True), default=datetime.utcnow)
-    matches = Column(JSONB, nullable=False)
-    unmatched_terms = Column(JSONB)
-    unmatched_clauses = Column(JSONB)
+    matches = Column(JSONType, nullable=False)
+    unmatched_terms = Column(JSONType)
+    unmatched_clauses = Column(JSONType)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
     __table_args__ = (
@@ -101,7 +118,7 @@ class GeneratedContractModel(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     alignment_id = Column(UUID(as_uuid=True), ForeignKey("alignments.id", ondelete="CASCADE"), nullable=False)
     generation_timestamp = Column(DateTime(timezone=True), default=datetime.utcnow)
-    modifications = Column(JSONB, nullable=False)
+    modifications = Column(JSONType, nullable=False)
     revision_tracked_path = Column(String(500))
     clean_version_path = Column(String(500))
     status = Column(String(20), default="draft")
@@ -122,7 +139,7 @@ class ReviewSessionModel(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     contract_id = Column(UUID(as_uuid=True), ForeignKey("generated_contracts.id", ondelete="CASCADE"), nullable=False)
     session_timestamp = Column(DateTime(timezone=True), default=datetime.utcnow)
-    items = Column(JSONB, nullable=False)
+    items = Column(JSONType, nullable=False)
     status = Column(String(20), default="in_progress")
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -144,8 +161,8 @@ class AuditEventModel(Base):
     document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="SET NULL"), nullable=True)
     session_id = Column(UUID(as_uuid=True), nullable=True)
     user_id = Column(String(100), nullable=True)
-    details = Column(JSONB)
-    metadata_ = Column("metadata", JSONB)
+    details = Column(JSONType)
+    metadata_ = Column("metadata", JSONType)
 
     __table_args__ = (
         Index("idx_audit_events_event_type", "event_type"),
@@ -161,7 +178,7 @@ class ConfigurationModel(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     config_type = Column(String(50), nullable=False)
-    config_data = Column(JSONB, nullable=False)
+    config_data = Column(JSONType, nullable=False)
     version = Column(Integer, default=1)
     is_active = Column(String(5), default="true")
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
@@ -182,7 +199,7 @@ class VersionHistoryModel(Base):
     entity_type = Column(String(50), nullable=False)
     entity_id = Column(UUID(as_uuid=True), nullable=False)
     version = Column(Integer, nullable=False)
-    snapshot = Column(JSONB, nullable=False)
+    snapshot = Column(JSONType, nullable=False)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
 
     __table_args__ = (

@@ -2,5 +2,12 @@
 
 from .ts_extractor import TSExtractor
 from .term_patterns import TermPatternMatcher
+from .hybrid_extractor import HybridTSExtractor, ISemanticRefiner, ILLMExtractor
 
-__all__ = ["TSExtractor", "TermPatternMatcher"]
+__all__ = [
+    "TSExtractor",
+    "TermPatternMatcher",
+    "HybridTSExtractor",
+    "ISemanticRefiner",
+    "ILLMExtractor",
+]

@@ -19,6 +19,7 @@ from .audit.audit_logger import AuditLogger
 from .audit.database import DatabaseManager
 from .config.config_manager import ConfigurationManager
 from .extractors.ts_extractor import TSExtractor
+from .extractors.hybrid_extractor import HybridTSExtractor
 from .generators.contract_generator import ContractGenerator
 from .interfaces.alignment import IAlignmentEngine
 from .interfaces.analyzer import ITemplateAnalyzer
@@ -69,6 +70,8 @@ class PipelineConfig:
     # Embedding model configuration
     embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
     use_embedding_model: bool = False  # Set to True to enable semantic matching
+    # Extraction configuration
+    use_hybrid_extractor: bool = False  # Set to True to enable HybridTSExtractor
 
 
 @dataclass
@@ -167,7 +170,14 @@ class ProcessingPipeline:
         
         # Initialize components
         self._parser = parser or DocumentParser()
-        self._ts_extractor = ts_extractor or TSExtractor()
+
+        # TS extractor: support both legacy TSExtractor and new HybridTSExtractor.
+        if ts_extractor is not None:
+            self._ts_extractor = ts_extractor
+        elif self.config.use_hybrid_extractor:
+            self._ts_extractor = HybridTSExtractor()
+        else:
+            self._ts_extractor = TSExtractor()
         self._template_analyzer = template_analyzer or TemplateAnalyzer(
             embedding_model=self._embedding_model
         )

@@ -13,6 +13,7 @@ Then send a multipart/form-data POST request to /api/process with
 
 from __future__ import annotations
 
+import os
 import tempfile
 from pathlib import Path
 from typing import Optional
@@ -24,6 +25,18 @@ from ..pipeline import PipelineConfig, ProcessingPipeline
 
 
 app = FastAPI(title="TS Contract Alignment API", version="0.1.0")
+
+
+def _get_use_embedding_from_env() -> bool:
+    """Determine whether to enable embedding model based on environment.
+
+    Uses TS_ALIGN_USE_EMBEDDING environment variable. Accepted truthy values:
+    "1", "true", "yes", "y" (case-insensitive). If not set, defaults to True.
+    """
+    value = os.getenv("TS_ALIGN_USE_EMBEDDING")
+    if value is None:
+        return True
+    return value.strip().lower() in {"1", "true", "yes", "y"}
 
 
 def _save_upload_to_temp(upload: UploadFile, temp_dir: Path) -> Path:
@@ -61,7 +74,9 @@ async def process_documents(
         ts_path = _save_upload_to_temp(ts_file, temp_dir)
         template_path = _save_upload_to_temp(template_file, temp_dir)
 
-        config = PipelineConfig()
+        config = PipelineConfig(
+            use_embedding_model=_get_use_embedding_from_env(),
+        )
         pipeline = ProcessingPipeline(config=config)
 
         result = pipeline.process(str(ts_path), str(template_path))

@@ -47,6 +47,10 @@ class AlignmentEngine(IAlignmentEngine):
         )
         self._confidence_threshold = confidence_threshold
         self._match_counter = 0
+        # Optional per-category strategies configured at runtime.
+        # Keys are TermCategory.value strings.
+        self._action_policies: Dict[str, str] = {}
+        self._review_thresholds_by_category: Dict[str, float] = {}
 
     def align(
         self,
@@ -167,11 +171,17 @@ class AlignmentEngine(IAlignmentEngine):
         # Find the best fillable segment for this term
         fillable_segment = self._find_best_fillable_segment(term, clause)
         
-        # Determine action type based on existing value
+        # Determine action type based on existing value and optional policy
         action = self._classify_action(term, clause, fillable_segment)
         
-        # Determine if human review is needed
-        needs_review = confidence < self._confidence_threshold
+        # Determine if human review is needed. If a per-category threshold is
+        # configured it takes precedence over the global threshold.
+        category_name = term.category.value
+        threshold = self._review_thresholds_by_category.get(
+            category_name,
+            self._confidence_threshold,
+        )
+        needs_review = confidence < threshold
         
         self._match_counter += 1
         match_id = f"match_{self._match_counter:04d}"
@@ -312,6 +322,13 @@ class AlignmentEngine(IAlignmentEngine):
         Returns:
             ActionType.INSERT or ActionType.OVERRIDE.
         """
+        # Honour explicit per-category action policy when provided.
+        policy = self._action_policies.get(term.category.value)
+        if policy == "insert":
+            return ActionType.INSERT
+        if policy == "override":
+            return ActionType.OVERRIDE
+
         # If there's a fillable segment with a current value, it's an override
         if fillable_segment and fillable_segment.current_value:
             # Check if current value is a placeholder (not a real value)
@@ -378,6 +395,16 @@ class AlignmentEngine(IAlignmentEngine):
             self._semantic_matcher.set_similarity_threshold(
                 config["semantic_threshold"]
             )
+
+        # Optional per-category action policies and review thresholds.
+        if "action_policies_by_category" in config:
+            self._action_policies = dict(config["action_policies_by_category"])
+
+        if "review_thresholds_by_category" in config:
+            self._review_thresholds_by_category = {
+                str(k): float(v)
+                for k, v in config["review_thresholds_by_category"].items()
+            }
 
     def get_confidence_threshold(self) -> float:
         """

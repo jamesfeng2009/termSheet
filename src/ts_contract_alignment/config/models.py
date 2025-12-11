@@ -122,6 +122,11 @@ class SystemConfiguration:
     terminology_mappings: List[TerminologyMapping] = field(default_factory=list)
     matching_rules: List[MatchingRule] = field(default_factory=list)
     rewriting_templates: List[RewritingTemplate] = field(default_factory=list)
+    # Optional alignment / review policies, typically loaded from JSON
+    # configuration files via ConfigurationManager.
+    action_policies: Dict[str, str] = field(default_factory=dict)
+    review_thresholds_by_category: Dict[str, float] = field(default_factory=dict)
+    conflict_resolution_policies: Dict[str, str] = field(default_factory=dict)
     version: int = 1
     metadata: Dict[str, Any] = field(default_factory=dict)
     

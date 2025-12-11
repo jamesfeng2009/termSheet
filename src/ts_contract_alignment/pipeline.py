@@ -21,6 +21,7 @@ from .config.config_manager import ConfigurationManager
 from .extractors.ts_extractor import TSExtractor
 from .extractors.hybrid_extractor import HybridTSExtractor
 from .generators.contract_generator import ContractGenerator
+from .generators.conflict_handler import ConflictHandlerConfig
 from .interfaces.alignment import IAlignmentEngine
 from .interfaces.analyzer import ITemplateAnalyzer
 from .interfaces.audit import AuditEventType, IAuditLogger
@@ -72,6 +73,23 @@ class PipelineConfig:
     use_embedding_model: bool = False  # Set to True to enable semantic matching
     # Extraction configuration
     use_hybrid_extractor: bool = False  # Set to True to enable HybridTSExtractor
+
+    # Alignment / review strategy configuration
+    # Maps TermCategory.value -> "insert" | "override" | "auto" (default "auto").
+    # When set to "insert" or "override" it will override the automatic
+    # placeholder-based classification in AlignmentEngine._classify_action.
+    action_policies: Dict[str, str] = field(default_factory=dict)
+
+    # Per-category confidence thresholds for human review. Keys are
+    # TermCategory.value strings and values are floats in [0.0, 1.0]. When a
+    # threshold is specified for a category it takes precedence over the
+    # global confidence_threshold when computing the needs_review flag.
+    per_category_confidence_thresholds: Dict[str, float] = field(default_factory=dict)
+
+    # Optional conflict resolution policies for contract generation. Keys are
+    # ConflictType.value strings and values are ConflictResolution.value
+    # strings, passed through to ConflictHandlerConfig.per_type_resolution.
+    conflict_policies: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -186,8 +204,34 @@ class ProcessingPipeline:
             db_connection=self._db_manager.engine if self._db_manager else None,
             confidence_threshold=self.config.confidence_threshold,
         )
+        # If a configuration manager is available and loaded, hydrate
+        # PipelineConfig policy fields from SystemConfiguration before
+        # constructing downstream components that rely on them.
+        if self._config_manager is not None and self._config_manager.is_loaded:
+            sys_cfg = self._config_manager.configuration
+            if not self.config.action_policies and sys_cfg.action_policies:
+                self.config.action_policies = dict(sys_cfg.action_policies)
+            if (
+                not self.config.per_category_confidence_thresholds
+                and sys_cfg.review_thresholds_by_category
+            ):
+                self.config.per_category_confidence_thresholds = dict(
+                    sys_cfg.review_thresholds_by_category
+                )
+            if not self.config.conflict_policies and sys_cfg.conflict_resolution_policies:
+                self.config.conflict_policies = dict(
+                    sys_cfg.conflict_resolution_policies
+                )
+
+        conflict_cfg = None
+        if self.config.conflict_policies:
+            conflict_cfg = ConflictHandlerConfig(
+                per_type_resolution=self.config.conflict_policies
+            )
+
         self._contract_generator = contract_generator or ContractGenerator(
-            output_dir=self.config.output_dir
+            output_dir=self.config.output_dir,
+            conflict_config=conflict_cfg,
         )
         self._audit_logger = audit_logger
         if self._audit_logger is None and self.config.enable_audit_logging:
@@ -463,11 +507,21 @@ class ProcessingPipeline:
         try:
             # Get configuration for alignment if available
             config = None
-            if self._config_manager.is_loaded:
+            if self._config_manager.is_loaded or self.config:
                 config = {
                     "confidence_threshold": self.config.confidence_threshold,
                     "semantic_threshold": self.config.semantic_threshold,
                 }
+
+                # Thread per-category strategies from PipelineConfig into the
+                # alignment engine. Keys are TermCategory.value strings.
+                if self.config.action_policies:
+                    config["action_policies_by_category"] = self.config.action_policies
+
+                if self.config.per_category_confidence_thresholds:
+                    config["review_thresholds_by_category"] = (
+                        self.config.per_category_confidence_thresholds
+                    )
             
             alignment = self._alignment_engine.align(
                 ts_extraction, template_analysis, config

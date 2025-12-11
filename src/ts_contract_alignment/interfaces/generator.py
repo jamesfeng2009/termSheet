@@ -17,6 +17,12 @@ class Modification:
     
     Represents a single modification made to the contract document,
     including the original and new text, location, and source information.
+    
+    The optional ``status`` field is used by the review workflow to track
+    whether a modification is pending, accepted, rejected, or auto-applied.
+    It is intentionally modeled as a simple string to avoid additional
+    dependencies and to remain backwards compatible with existing JSON
+    persistence of modifications.
     """
     id: str
     match_id: str
@@ -28,10 +34,13 @@ class Modification:
     source_ts_paragraph_id: str
     confidence: float
     annotations: dict = field(default_factory=dict)
+    status: str = "pending"
 
     def __post_init__(self):
         if self.annotations is None:
             self.annotations = {}
+        if not self.status:
+            self.status = "pending"
 
 
 @dataclass

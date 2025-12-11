@@ -71,6 +71,11 @@ class ConflictHandlerConfig:
     raise_on_critical: bool = False
     max_conflicts_before_abort: int = 100
     preserve_formatting_on_conflict: bool = True
+    # Optional per-type override for resolution strategies. Keys are
+    # ConflictType.value strings (e.g. "formatting_mismatch"), values are
+    # ConflictResolution.value strings (e.g. "preserve_original",
+    # "apply_new", "skip", "manual_review").
+    per_type_resolution: Dict[str, str] = field(default_factory=dict)
 
 
 class ConflictHandler:
@@ -270,6 +275,22 @@ class ConflictHandler:
 
     def _determine_resolution(self, conflict_type: ConflictType) -> ConflictResolution:
         """Determine the resolution strategy for a conflict type."""
+        # First look for an explicit override in the configuration, keyed by
+        # ConflictType.value.
+        if self.config.per_type_resolution:
+            key = conflict_type.value
+            override = self.config.per_type_resolution.get(key)
+            if override is not None:
+                try:
+                    return ConflictResolution(override)
+                except ValueError:
+                    logger.warning(
+                        "Invalid conflict resolution '%s' configured for type '%s'",
+                        override,
+                        key,
+                    )
+
+        # Fall back to the built-in default mapping when no override exists.
         resolution_map = {
             ConflictType.FORMATTING_MISMATCH: ConflictResolution.PRESERVE_ORIGINAL,
             ConflictType.STYLE_CONFLICT: ConflictResolution.PRESERVE_ORIGINAL,
@@ -279,7 +300,7 @@ class ConflictHandler:
             ConflictType.VALUE_TYPE_MISMATCH: ConflictResolution.PRESERVE_ORIGINAL,
             ConflictType.STRUCTURE_VIOLATION: ConflictResolution.PRESERVE_ORIGINAL,
         }
-        
+
         return resolution_map.get(conflict_type, self.config.default_resolution)
 
     def _get_resolution_details(

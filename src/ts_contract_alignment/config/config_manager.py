@@ -746,7 +746,33 @@ class ConfigurationManager:
                 result.add_error(f"Templates loading failed: {e.message}")
                 if e.validation_result:
                     result = result.merge(e.validation_result)
-        
+
+        # Load optional alignment / conflict policies
+        policies_file = config_dir / "policies.json"
+        if policies_file.exists():
+            try:
+                raw_policies = self._parse_source(policies_file)
+                if isinstance(raw_policies, dict):
+                    action_policies = raw_policies.get("action_policies") or {}
+                    review_thresholds = raw_policies.get("review_thresholds_by_category") or {}
+                    conflict_policies = raw_policies.get("conflict_resolution_policies") or {}
+
+                    if isinstance(action_policies, dict):
+                        self._configuration.action_policies = {
+                            str(k): str(v) for k, v in action_policies.items()
+                        }
+                    if isinstance(review_thresholds, dict):
+                        self._configuration.review_thresholds_by_category = {
+                            str(k): float(v) for k, v in review_thresholds.items()
+                        }
+                    if isinstance(conflict_policies, dict):
+                        self._configuration.conflict_resolution_policies = {
+                            str(k): str(v) for k, v in conflict_policies.items()
+                        }
+            except ConfigurationError as e:
+                # Surface policy loading issues as warnings in the validation
+                result.add_warning(f"Policies loading failed: {e.message}")
+
         self._config_dir = config_dir
         return result
 
